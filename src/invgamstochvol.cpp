@@ -3,10 +3,16 @@
 #define ARMA_DONT_PRINT_ERRORS  
  
 using namespace Rcpp;           
-  
+ 
+#ifdef _OPENMP
+#include <omp.h>
+//  #else
+//  int mnote=1; 
+#endif
+ 
 // #define ARMA_NO_DEBUG                            
-#include <omp.h>                                
-// [[Rcpp::plugins(openmp)]]                       
+                             
+//  // [[Rcpp::plugins(openmp)]]                       
 
 // [[Rcpp::plugins("cpp11")]]  
     
@@ -39,11 +45,15 @@ void CalcuLogfac(int niter, int NIT, double n,
                  arma::mat &alogfac, arma::mat &alogfac2, 
                  arma::mat &alfac, int nproc)
 {
+
+  
   int donde=(niter>NIT)*niter+(NIT>=niter)*NIT; 
  
   
+#ifdef _OPENMP
   omp_set_num_threads(nproc);
-#pragma omp parallel for    
+#pragma omp parallel for   
+#endif
   for (int h=0; h<=donde; h++)
   {for (int hold=0; hold<=NIT; hold++)
   { 
@@ -128,7 +138,7 @@ return(sum);
 //' @name lik_clo
 //' 
 //' 
-//' @description Computes the log likelihood for an inverse gamma stochastic volatility model using a closed form expression of the likelihood. The details of the computation of this closed form expression are given in Leon-Gonzalez, R., & Majoni, B. (2023). Exact Likelihood for Inverse Gamma Stochastic Volatility Models (No. 23-11). 
+//' @description Computes the log likelihood for an inverse gamma stochastic volatility model using a closed form expression of the likelihood. The details of the computation of this closed form expression are given in Leon-Gonzalez, R., & Majoni, B. (2023). Exact Likelihood for Inverse Gamma Stochastic Volatility Models (No. 23-11). Computations in 'MAC OS' are single-threaded if 'OpenMP' is not installed.
 //' @details The closed form expression is obtained for the log likelihood of a stationary inverse gamma stochastic volatility model by marginalising out the volatilities. This allows the user to obtain the maximum likelihood estimator for this non linear non Gaussian state space model. When combined with `DrawK0`, the function can in addition obtain the estimates of the smoothed volatilities using the exact smoothing distributions.
 //' @usage lik_clo( Res,  b2,  n, rho,  NIT=200,  niter=200,  nproc=2,  nproc2=2)
 //' @param Res Matrix of OLS residuals. Usually resulting from a call to priorvar.
@@ -177,7 +187,9 @@ return(sum);
 Rcpp::List lik_clo(arma::mat Res, double b2,
                      double n, double rho, int NIT=200, int niter=200, int nproc=2, int nproc2=2) 
   //  NIT is the degree of approximation
-{ int T=Res.n_rows;
+{ 
+  // if (mnote==1){Rcout << "omp support not found: " << " multi-thread computing disabled "}
+  int T=Res.n_rows;
   arma::mat logLik=arma::zeros(T,1); 
   arma::vec oldctil=arma::zeros(NIT+1,1);
   arma::vec newctil=arma::zeros(NIT+1,1);
@@ -192,8 +204,13 @@ Rcpp::List lik_clo(arma::mat Res, double b2,
   arma::mat alfac=arma::zeros(donde+1,1); 
   
   
-  omp_set_num_threads(nproc);
-#pragma omp parallel for    
+#ifdef _OPENMP
+  omp_set_num_threads(nproc2);
+#pragma omp parallel for
+#else
+  // single threaded version
+  nproc2=1;
+#endif   
   for (int h=0; h<=donde; h++)
   {for (int hold=0; hold<=NIT; hold++)
   { 
@@ -281,7 +298,9 @@ Rcpp::List lik_clo(arma::mat Res, double b2,
   
   arma::mat AllGeo=arma::zeros(T,(NIT+1));
   
-#pragma omp parallel for    
+#ifdef _OPENMP
+#pragma omp parallel for   
+#endif
   for (int tt=3; tt<=T-1; tt++){
     double zt=Allzt(tt);
     for  (int h=0; h<=NIT; h++){
@@ -307,10 +326,15 @@ Rcpp::List lik_clo(arma::mat Res, double b2,
     arma::vec nitvec=arma::ones<arma::vec>(nproc2)*NITper;
     if (remain>0){nitvec.row(nproc2-1)+=remain;}  
     arma::vec limits=arma::cumsum(nitvec);  arma::vec trick=arma::zeros(1,1);  limits=arma::join_cols(trick, limits);
+#ifdef _OPENMP
     omp_set_num_threads(nproc2);
 #pragma omp parallel for
+#else
+    // single threaded version
+    nproc2=1;
+    limits=arma::zeros(2,1); limits(0,0)=0; limits(1,0)=NIT+1;
+#endif
     for (int ii=0; ii<=nproc2-1; ii++){
-      
       for (int h=limits(ii); h<=(limits(ii+1)-1); h++)
         {
         double auxt, chat, ctil, auxi1, auxi2, auxi3; 
@@ -369,12 +393,6 @@ Rcpp::List lik_clo(arma::mat Res, double b2,
   AllSt(T)=1/(b2*et*et+1);
   
   double finalLK=arma::accu(logLik);
-  
-  double q2=1.0/arma::trace(arma::var(Res));
-  double VarLik=-0.5*arma::trace(q2*arma::trans(Res)*Res);
-  VarLik+=+0.5*T*std::log(q2);
-  VarLik+=-T*0.5*std::log(2*arma::datum::pi);
- 
 
   return Rcpp::List::create(finalLK, logLik, AllSt, allctil, alogfac, 
                             alogfac2, alfac);
@@ -471,7 +489,9 @@ Rcpp::List lik_clo(arma::mat Res, double b2,
 arma::vec DrawK0(arma::mat AllSt, arma::mat allctil, arma::mat alogfac, 
                  arma::mat alogfac2, arma::mat alfac, 
                  double n, double rho, double b2, int nproc2=2)
-{ int NIT=allctil.n_cols-1;
+{ 
+
+  int NIT=allctil.n_cols-1;
   int T = allctil.n_rows;
   arma::mat allc=arma::zeros(T, NIT+1);
   arma::mat AllW=arma::zeros(T,NIT+1); 
@@ -503,10 +523,14 @@ arma::vec DrawK0(arma::mat AllSt, arma::mat allctil, arma::mat alogfac,
   AllK(cualt-1)=Khere;
   
   cualt=T-1; // for t=T-1, ..., 1
+#ifdef _OPENMP
   omp_set_num_threads(nproc2);
+#endif
   for (int cualt=(T-1); cualt>=1; cualt--)
   {
+#ifdef _OPENMP
 #pragma omp parallel for
+#endif
     for (int h=0; h<=(NIT); h++){
       double auxil1=0; double auxil2, sss1; 
       if (cualt>1){

@@ -1,5 +1,5 @@
 # invgamstochvol (development version)
 
-# invgamstochvol 0.0.1
+# invgamstochvol 1.0.0
 
-* Initial CRAN submission.
+* Updated to allow single thread computation in MAC OS 

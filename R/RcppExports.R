@@ -27,7 +27,7 @@ ourgeo <- function(a1, a2, b1, zstar, niter = 500L) {
 #' @name lik_clo
 #' 
 #' 
-#' @description Computes the log likelihood for an inverse gamma stochastic volatility model using a closed form expression of the likelihood. The details of the computation of this closed form expression are given in Leon-Gonzalez, R., & Majoni, B. (2023). Exact Likelihood for Inverse Gamma Stochastic Volatility Models (No. 23-11). 
+#' @description Computes the log likelihood for an inverse gamma stochastic volatility model using a closed form expression of the likelihood. The details of the computation of this closed form expression are given in Leon-Gonzalez, R., & Majoni, B. (2023). Exact Likelihood for Inverse Gamma Stochastic Volatility Models (No. 23-11). Computations in 'MAC OS' are single-threaded if 'OpenMP' is not installed.
 #' @details The closed form expression is obtained for the log likelihood of a stationary inverse gamma stochastic volatility model by marginalising out the volatilities. This allows the user to obtain the maximum likelihood estimator for this non linear non Gaussian state space model. When combined with `DrawK0`, the function can in addition obtain the estimates of the smoothed volatilities using the exact smoothing distributions.
 #' @usage lik_clo( Res,  b2,  n, rho,  NIT=200,  niter=200,  nproc=2,  nproc2=2)
 #' @param Res Matrix of OLS residuals. Usually resulting from a call to priorvar.
